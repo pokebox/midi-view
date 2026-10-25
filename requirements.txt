@@ -1,0 +1,8 @@
+mido>=1.3.2
+python-rtmidi>=1.5.8
+PyQt6>=6.6.0
+numpy>=1.24.0
+sounddevice>=0.4.6
+
+# 可选：加载 .sf2 音源文件时需要（另需 fluidsynth 动态库）
+# pyfluidsynth>=1.3.0
