@@ -30,6 +30,7 @@ from ..audio.engine import NullBackend, create_backend
 from ..core.midi_input import MidiEvent, MidiInput, MidiPortError, list_input_ports
 from ..core.notes import note_name
 from . import theme
+from .note_trail import NoteTrail
 from .piano_widget import PianoKeyboard
 
 MAX_LOG_BLOCKS = 2000
@@ -55,7 +56,7 @@ class MainWindow(QMainWindow):
                  enable_audio: bool = True) -> None:
         super().__init__()
         self.setWindowTitle("MIDI 可视化 · MIDI Visualizer")
-        self.resize(1180, 660)
+        self.resize(1320, 740)
 
         # -- 状态 ---------------------------------------------------------
         self._held: dict[int, int] = {}        # 物理按住的键 -> 力度
@@ -110,7 +111,7 @@ class MainWindow(QMainWindow):
         splitter.addWidget(self._build_log_panel())
         splitter.setStretchFactor(0, 3)
         splitter.setStretchFactor(1, 2)
-        splitter.setSizes([700, 460])
+        splitter.setSizes([740, 540])
         outer.addWidget(splitter, 1)
 
         self.statusBar().showMessage("就绪")
@@ -230,17 +231,21 @@ class MainWindow(QMainWindow):
 
         lay.addWidget(info)
 
-        # --- 键盘 ---
+        # --- 键盘 + 瀑布 ---
         kbd_frame = QFrame()
         kbd_frame.setObjectName("Panel")
         kbd_lay = QVBoxLayout(kbd_frame)
         kbd_lay.setContentsMargins(10, 8, 10, 10)
         kbd_lay.setSpacing(6)
-        kbd_lay.addWidget(_section_title("键盘 · 颜色越暖表示力度越大（点击键盘可本地发声）"))
+        kbd_lay.addWidget(_section_title(
+            "音符瀑布 · 颜色越暖力度越大（点击键盘可本地发声，Esc 急停）"))
         self.keyboard = PianoKeyboard()
+        self.keyboard.setFixedHeight(142)
         self.keyboard.keyPressed.connect(self._on_mouse_press)
         self.keyboard.keyReleased.connect(self._on_mouse_release)
-        kbd_lay.addWidget(self.keyboard, 1)
+        self.trail = NoteTrail(self.keyboard)
+        kbd_lay.addWidget(self.trail, 1)
+        kbd_lay.addWidget(self.keyboard, 0)
         lay.addWidget(kbd_frame, 1)
         return panel
 
@@ -398,6 +403,7 @@ class MainWindow(QMainWindow):
             self._last_note = (ev.note, ev.velocity)
             self.chip_channel.setText(f"CH {ev.channel}")
             self.audio.note_on(ev.note, ev.velocity)
+            self.trail.note_on(ev.note, ev.velocity)
         elif ev.is_note_off:
             velocity = self._held.pop(ev.note, None) or 0
             if self._sustain_on:
@@ -405,6 +411,7 @@ class MainWindow(QMainWindow):
             else:
                 self._sustained.pop(ev.note, None)
             self.audio.note_off(ev.note)
+            self.trail.note_off(ev.note)
         elif ev.type == "control_change":
             if ev.control == 64:
                 self._sustain_on = ev.value >= 64
@@ -415,6 +422,7 @@ class MainWindow(QMainWindow):
             elif ev.control in (120, 123):
                 self._held.clear()
                 self._sustained.clear()
+                self.trail.clear()
             self.audio.control_change(ev.control, ev.value)
         elif ev.type == "pitch_bend":
             self._bend = ev.bend
@@ -446,9 +454,9 @@ class MainWindow(QMainWindow):
         stamp = time.strftime("%H:%M:%S", now) + f".{int(time.time() * 1000) % 1000:03d}"
         if self._last_ts:
             delta_ms = (ev.timestamp - self._last_ts) * 1000.0
-            gap = f"+{delta_ms:6.1f}ms"
+            gap = f"{delta_ms:+8.1f}ms" if delta_ms < 10000 else "     —— "
         else:
-            gap = "        "
+            gap = " " * 10
         self._last_ts = ev.timestamp
         return f"[{stamp}] {ev.hex:<11s} {gap}  {ev.describe()}"
 
@@ -460,6 +468,7 @@ class MainWindow(QMainWindow):
         self._sustained.pop(note, None)
         self._last_note = (note, velocity)
         self.audio.note_on(note, velocity)
+        self.trail.note_on(note, velocity)
         self._refresh_ui()
         if not self._log_paused:
             self.log_view.appendPlainText(
@@ -470,6 +479,7 @@ class MainWindow(QMainWindow):
         if self._sustain_on and velocity:
             self._sustained[note] = velocity
         self.audio.note_off(note)
+        self.trail.note_off(note)
         self._refresh_ui()
 
     def _on_pause_toggled(self, paused: bool) -> None:
@@ -487,6 +497,7 @@ class MainWindow(QMainWindow):
             self._held.clear()
             self._sustained.clear()
             self.audio.all_notes_off()
+            self.trail.clear()
             self._refresh_ui()
             self.statusBar().showMessage("已复位：全部音符关闭", 2000)
             return

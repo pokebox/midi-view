@@ -9,7 +9,6 @@ dist/
 
 # 运行产物
 *.log
-preview*.png
 .mypy_cache/
 .pytest_cache/
 

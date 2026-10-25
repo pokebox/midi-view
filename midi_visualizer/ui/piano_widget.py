@@ -22,10 +22,10 @@ from . import theme
 
 
 def velocity_color(velocity: int) -> QColor:
-    """力度 -> 颜色：轻按偏蓝青，重按偏橙红。"""
+    """力度 -> 颜色：轻按蓝紫、中等品红、重按橙红，越暖力度越大。"""
     v = max(1, min(127, velocity)) / 127.0
-    hue = (205.0 - 205.0 * v) / 360.0
-    return QColor.fromHsvF(hue, 0.55 + 0.38 * v, 0.72 + 0.26 * v)
+    hue = ((220.0 + 140.0 * v) % 360.0) / 360.0
+    return QColor.fromHsvF(hue, 0.58 + 0.34 * v, 0.78 + 0.22 * v)
 
 
 class PianoKeyboard(QWidget):
@@ -44,7 +44,7 @@ class PianoKeyboard(QWidget):
         self._black_rects: dict[int, QRectF] = {}
         self._mouse_note: int | None = None
 
-        self.setMinimumHeight(190)
+        self.setMinimumHeight(110)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.setMouseTracking(True)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -82,6 +82,18 @@ class PianoKeyboard(QWidget):
     @property
     def active_notes(self) -> dict[int, tuple[int, bool]]:
         return dict(self._notes)
+
+    def key_span(self, note: int) -> tuple[float, float, bool] | None:
+        """返回某个音在键盘上的水平范围 ``(x, width, is_black)``，给瀑布图对齐用。"""
+        if not self._white_rects:
+            self._rebuild_layout()
+        if note in self._black_rects:
+            rect = self._black_rects[note]
+            return rect.left(), rect.width(), True
+        rect = self._white_rects.get(note)
+        if rect is None:
+            return None
+        return rect.left(), rect.width(), False
 
     # ------------------------------------------------------------------
     # 几何
@@ -229,14 +241,18 @@ class PianoKeyboard(QWidget):
 
     def _draw_octave_labels(self, painter: QPainter) -> None:
         font = QFont("Consolas")
-        font.setPixelSize(9)
+        font.setPixelSize(10)
         painter.setFont(font)
         for note, rect in self._white_rects.items():
             if note % 12 != 0 or note in self._notes:
                 continue  # 按下的键已经有力度数字了，不再画音名
+            if rect.width() < 13:
+                continue  # 键太窄时不画，避免糊成一团
             painter.setPen(QColor(theme.TEXT_MUTED))
-            label_rect = QRectF(rect.left(), rect.bottom() - 15, rect.width(), 13)
-            painter.drawText(label_rect, Qt.AlignmentFlag.AlignHCenter, note_name(note))
+            label_rect = QRectF(rect.left(), rect.bottom() - 20, rect.width(), 15)
+            painter.drawText(label_rect,
+                             Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter,
+                             note_name(note))
 
     # ------------------------------------------------------------------
     # 鼠标：点键盘可以本地发声（相当于虚拟键盘）
