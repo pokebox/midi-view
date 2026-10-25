@@ -205,7 +205,7 @@ class MidiEvent:
             return f"Note Off  {ch} {self.note_name:<4s} ({self.data1:3d})  vel {self.data2}"
         if t == "control_change":
             name = CC_NAMES.get(self.data1, "")
-            return f"CC        {ch} #{self.data1:<3d} {name:<18s} {self.data2}"
+            return f"CC        {ch} #{self.data1:<3d} {name:<14s} {self.data2}"
         if t == "pitch_bend":
             pct = self.bend / 8192.0 * 100.0
             return f"PitchBend {ch} {self.bend:+6d}  ({pct:+.1f}%)"
