@@ -96,10 +96,8 @@ class StaffView(QWidget):
         super().__init__(parent)
         self._notes: dict[int, tuple[int, bool]] = {}
         self._family = music_font_family()
-        self.setMinimumWidth(190)
-        self.setMinimumHeight(160)
-        self.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding)
-        self.setFixedWidth(252)
+        self.setMinimumSize(210, 180)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.setToolTip("大谱表（高音谱 + 低音谱）：实心音头＝正在按下，空心＝踏板延音中；"
                         "升号以临时记号表示（不设调号）")
 
@@ -127,7 +125,8 @@ class StaffView(QWidget):
         low, high = self._window()
         span = max(8, high - low)                       # 半格数
         avail = max(60.0, self.height() - 20.0)
-        s = max(MIN_SPACING, min(MAX_SPACING, avail * 2.0 / span))
+        s = max(MIN_SPACING, min(MAX_SPACING, avail * 2.0 / span,
+                                 max(MIN_SPACING, self.width() / 11.0)))
         total = span * s / 2.0
         top = (self.height() - total) / 2.0
         return s, top, high
@@ -148,8 +147,11 @@ class StaffView(QWidget):
         painter.drawRoundedRect(QRectF(0, 0, w, h), 8, 8)
 
         s, top, high = self._geometry()
-        left = 26.0
-        right = w - 8.0
+        # 谱表系统（谱号 + 五线 + 音符）不必拉满整块面板，收窄后居中更像一页谱面
+        inner_left, inner_right = 12.0, w - 12.0
+        sys_w = min(inner_right - inner_left, 470.0)
+        left = inner_left + ((inner_right - inner_left) - sys_w) / 2.0
+        right = left + sys_w
 
         self._draw_staves(painter, left, right, s, top, high)
         self._draw_clefs(painter, left, s, top, high)
@@ -188,6 +190,7 @@ class StaffView(QWidget):
         painter.drawLine(QPointF(brace_x, y_top + 2), QPointF(brace_x, y_bot - 2))
         painter.drawLine(QPointF(brace_x, y_top + 2), QPointF(left - 1, y_top + 2))
         painter.drawLine(QPointF(brace_x, y_bot - 2), QPointF(left - 1, y_bot - 2))
+        painter.drawLine(QPointF(right, y_top), QPointF(right, y_bot))
 
     # -- 谱号 -----------------------------------------------------------
     def _draw_clefs(self, painter: QPainter, left: float, s: float,
@@ -225,7 +228,7 @@ class StaffView(QWidget):
                     s: float, top: float, high: int) -> None:
         if not self._notes:
             return
-        base_x = left + (right - left) * 0.42
+        base_x = left + max(70.0, s * 6.0)
         placed: list[tuple[float, int]] = []      # (y, 横向错位列号)
 
         for note in sorted(self._notes):
@@ -234,12 +237,16 @@ class StaffView(QWidget):
             lines = TREBLE_LINES if step >= MIDDLE_C_STEP else BASS_LINES
             y = self._y_of(step, s, top, high)
 
-            # 音高相近的音头会挤在同一列，按真实排版往右错开
+            # 二度叠置的音头会互相压住，按真实排版做法左/右各错开一列（不再无限右移）
+            taken = {po for py, po in placed if abs(py - y) < s * 0.62}
             offset = 0
-            while any(abs(py - y) < s * 1.35 and po == offset for py, po in placed):
-                offset += 1
+            if offset in taken:
+                for cand in (1, -1):
+                    if cand not in taken:
+                        offset = cand
+                        break
             placed.append((y, offset))
-            x = base_x + offset * s * 1.35
+            x = base_x + offset * s * 1.30
 
             color = velocity_color(velocity)
             if sustained:
@@ -296,12 +303,19 @@ class StaffView(QWidget):
         painter.drawEllipse(QRectF(-ew / 2, -eh / 2, ew, eh))
         painter.restore()
 
-        # 音名直接写在音头中间：谱表窄、和弦密的时候比外挂标签更靠谱
-        if not label or ew < 19:
+        # 音名直接写在音头中间：谱表窄、和弦密的时候比外挂标签更靠谱。
+        # 字号按音头宽度自适应，谱表缩小（窗口变矮）时标签不溢出到音头外
+        if not label or ew < 13:
             return
         font = QFont("Consolas")
-        font.setPixelSize(max(7, int(round(eh * 0.62))))
         font.setBold(True)
+        size = max(6, int(round(eh * 0.70)))
+        while size > 6:
+            font.setPixelSize(size)
+            if QFontMetricsF(font).horizontalAdvance(label) <= ew * 0.90:
+                break
+            size -= 1
+        font.setPixelSize(size)
         painter.setFont(font)
         painter.setPen(QColor("#0A0E14") if filled else QColor(color).lighter(130))
         painter.drawText(QRectF(x - ew / 2, y - eh / 2, ew, eh),
