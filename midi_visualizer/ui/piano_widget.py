@@ -165,8 +165,9 @@ class PianoKeyboard(QWidget):
 
         if state is not None:
             velocity, _ = state
-            self._draw_velocity_bar(painter, r, velocity)
-            self._draw_pressed_label(painter, r, velocity, dark_text=True)
+            if r.width() >= 10:
+                self._draw_velocity_bar(painter, r, velocity)
+            self._draw_pressed_label(painter, r, velocity, y_ratio=0.60)
 
     def _draw_black_key(self, painter: QPainter, note: int, rect: QRectF) -> None:
         state = self._notes.get(note)
@@ -196,9 +197,8 @@ class PianoKeyboard(QWidget):
 
         if state is not None:
             velocity, _ = state
-            if r.width() > 18:
-                self._draw_pressed_label(painter, r, velocity, dark_text=False,
-                                         y_ratio=0.86)
+            if r.width() >= 9:
+                self._draw_pressed_label(painter, r, velocity, y_ratio=0.88)
 
     def _draw_velocity_bar(self, painter: QPainter, rect: QRectF, velocity: int) -> None:
         """在按键底部画一条力度条，长度正比于力度。"""
@@ -211,27 +211,32 @@ class PianoKeyboard(QWidget):
         painter.drawRoundedRect(bar, bar_h / 2, bar_h / 2)
 
     def _draw_pressed_label(self, painter: QPainter, rect: QRectF,
-                            velocity: int, dark_text: bool, y_ratio: float = 0.72) -> None:
-        if rect.width() < 16:
+                            velocity: int, y_ratio: float = 0.62) -> None:
+        """在按键上画出力度数值（字号随键宽自适应）。"""
+        if rect.width() < 9:
             return
-        font = QFont("Consolas", max(7, int(min(11, rect.width() / 4.2))))
+        text = str(velocity)
+        # 88 键全铺满时白键只有十几像素宽，按可用宽度反推字号
+        size = max(6.0, min(11.0, rect.width() / max(1.6, len(text) * 0.62)))
+        font = QFont("Consolas")
+        font.setPixelSize(int(round(size)))
         font.setBold(True)
         painter.setFont(font)
-        painter.setPen(QColor("#0D1117") if dark_text else QColor("#FFFFFF"))
-        text_rect = QRectF(rect.left(), rect.top() + rect.height() * y_ratio - 9,
+        painter.setPen(QColor("#FFFFFF"))
+        text_rect = QRectF(rect.left(), rect.top() + rect.height() * y_ratio - 8,
                            rect.width(), 16)
-        painter.drawText(text_rect, Qt.AlignmentFlag.AlignHCenter, str(velocity))
+        painter.drawText(text_rect, Qt.AlignmentFlag.AlignHCenter, text)
 
     def _draw_octave_labels(self, painter: QPainter) -> None:
-        font = QFont("Consolas", 8)
+        font = QFont("Consolas")
+        font.setPixelSize(9)
         painter.setFont(font)
-        painter.setPen(QColor(theme.TEXT_MUTED))
         for note, rect in self._white_rects.items():
-            if note % 12 != 0:
-                continue
-            label = note_name(note)
-            label_rect = QRectF(rect.left(), rect.bottom() - 16, rect.width(), 14)
-            painter.drawText(label_rect, Qt.AlignmentFlag.AlignHCenter, label)
+            if note % 12 != 0 or note in self._notes:
+                continue  # 按下的键已经有力度数字了，不再画音名
+            painter.setPen(QColor(theme.TEXT_MUTED))
+            label_rect = QRectF(rect.left(), rect.bottom() - 15, rect.width(), 13)
+            painter.drawText(label_rect, Qt.AlignmentFlag.AlignHCenter, note_name(note))
 
     # ------------------------------------------------------------------
     # 鼠标：点键盘可以本地发声（相当于虚拟键盘）
