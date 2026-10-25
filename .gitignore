@@ -23,3 +23,6 @@ soundfonts/
 .idea/
 Thumbs.db
 desktop.ini
+
+# 工作区元数据
+.workbuddy/
