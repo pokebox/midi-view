@@ -32,6 +32,7 @@ from ..core.notes import note_name
 from . import theme
 from .note_trail import NoteTrail
 from .piano_widget import PianoKeyboard
+from .staff_widget import StaffView
 
 MAX_LOG_BLOCKS = 2000
 REFRESH_MS = 16      # 约 60fps
@@ -231,20 +232,28 @@ class MainWindow(QMainWindow):
 
         lay.addWidget(info)
 
-        # --- 键盘 + 瀑布 ---
+        # --- 键盘 + 瀑布 + 五线谱 ---
         kbd_frame = QFrame()
         kbd_frame.setObjectName("Panel")
         kbd_lay = QVBoxLayout(kbd_frame)
         kbd_lay.setContentsMargins(10, 8, 10, 10)
         kbd_lay.setSpacing(6)
         kbd_lay.addWidget(_section_title(
-            "音符瀑布 · 颜色越暖力度越大（点击键盘可本地发声，Esc 急停）"))
+            "音符瀑布 · 五线谱 · 键盘（点击键盘可本地发声，Esc 急停）"))
+
         self.keyboard = PianoKeyboard()
         self.keyboard.setFixedHeight(142)
         self.keyboard.keyPressed.connect(self._on_mouse_press)
         self.keyboard.keyReleased.connect(self._on_mouse_release)
         self.trail = NoteTrail(self.keyboard)
-        kbd_lay.addWidget(self.trail, 1)
+        self.staff = StaffView()
+
+        viz_row = QHBoxLayout()
+        viz_row.setContentsMargins(0, 0, 0, 0)
+        viz_row.setSpacing(8)
+        viz_row.addWidget(self.trail, 1)
+        viz_row.addWidget(self.staff, 0)
+        kbd_lay.addLayout(viz_row, 1)
         kbd_lay.addWidget(self.keyboard, 0)
         lay.addWidget(kbd_frame, 1)
         return panel
@@ -435,6 +444,7 @@ class MainWindow(QMainWindow):
         for n, v in self._sustained.items():
             state.setdefault(n, (v, True))
         self.keyboard.set_notes(state)
+        self.staff.set_notes(state)
 
         if self._last_note is not None:
             note, velocity = self._last_note

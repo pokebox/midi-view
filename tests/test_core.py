@@ -12,6 +12,12 @@ import numpy as np
 from midi_visualizer.audio.synth import PolySynth, SynthVoice
 from midi_visualizer.core.midi_input import parse_message
 from midi_visualizer.core.notes import is_black_key, note_name, note_to_freq
+from midi_visualizer.ui.staff_widget import (
+    BASS_LINES,
+    MIDDLE_C_STEP,
+    TREBLE_LINES,
+    staff_step,
+)
 
 
 class TestNotes(unittest.TestCase):
@@ -87,6 +93,37 @@ class TestParser(unittest.TestCase):
         ev = parse_message(bytes([0xF8]))
         self.assertEqual(ev.channel, 0)
         self.assertEqual(ev.type, "clock")
+
+
+class TestStaffPosition(unittest.TestCase):
+    """五线谱定位：音级步进必须和各谱表的线位置严格对应。"""
+
+    def test_middle_c(self):
+        self.assertEqual(staff_step(60), (MIDDLE_C_STEP, 0))
+
+    def test_sharp_keeps_diatonic_step(self):
+        self.assertEqual(staff_step(61), (28, 1))    # C#4 与 C4 同一位置
+        self.assertEqual(staff_step(66), (31, 1))    # F#4
+        self.assertEqual(staff_step(58), (26, 1))    # A#3 与 A3 同线
+
+    def test_treble_lines(self):
+        # E4 G4 B4 D5 F5 必须正好落在高音谱的五条线上
+        for note in (64, 67, 71, 74, 77):
+            self.assertIn(staff_step(note)[0], TREBLE_LINES, note_name(note))
+
+    def test_bass_lines(self):
+        # G2 B2 D3 F3 A3 必须正好落在低音谱的五条线上
+        for note in (43, 47, 50, 53, 57):
+            self.assertIn(staff_step(note)[0], BASS_LINES, note_name(note))
+
+    def test_space_between_lines(self):
+        # 线之间的音（间）应该是奇数步进
+        self.assertEqual(staff_step(65)[0], 31)      # F4 在 E4/G4 之间
+        self.assertEqual(staff_step(62)[0], 29)      # D4 在中央 C 之上
+
+    def test_range_corners(self):
+        self.assertEqual(staff_step(21), (5, 0))     # A0
+        self.assertEqual(staff_step(108), (56, 0))   # C8
 
 
 class TestSynth(unittest.TestCase):
