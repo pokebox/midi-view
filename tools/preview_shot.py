@@ -41,13 +41,16 @@ SCRIPT: list[tuple[float, bytes]] = [
     (0.35, bytes([0x90, 79, 0x45])),    # G5  vel 69
     (0.28, bytes([0xC0, 0x00])),        # 音色切换
     (0.30, bytes([0x80, 60, 0x00])),    # 松 C4
+    (0.26, bytes([0x90, 88, 0x5E])),    # E6  vel 94（高音区，验证瀑布不被裁掉）
+    (0.18, bytes([0x90, 96, 0x74])),    # C7  vel 116
+    (0.22, bytes([0x90, 91, 0x46])),    # G6  vel 70
 ]
 
 
 def main() -> int:
     app = QApplication(sys.argv[:1])
     window = MainWindow(enable_audio=False)
-    window.resize(1320, 740)
+    window.resize(1440, 780)
     window.show()
     app.processEvents()
 
