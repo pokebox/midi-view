@@ -57,7 +57,8 @@ class MainWindow(QMainWindow):
                  enable_audio: bool = True) -> None:
         super().__init__()
         self.setWindowTitle("MIDI 可视化 · MIDI Visualizer")
-        self.resize(1320, 740)
+        self.resize(1440, 780)
+        self.setMinimumSize(1180, 700)
 
         # -- 状态 ---------------------------------------------------------
         self._held: dict[int, int] = {}        # 物理按住的键 -> 力度
@@ -106,13 +107,22 @@ class MainWindow(QMainWindow):
 
         outer.addWidget(self._build_toolbar())
 
+        # 右栏：五线谱在上、原始数据在下（可拖动分配高度，互不挤占宽度）
+        right = QSplitter(Qt.Orientation.Vertical)
+        right.setChildrenCollapsible(False)
+        right.addWidget(self._build_staff_panel())
+        right.addWidget(self._build_log_panel())
+        right.setStretchFactor(0, 1)
+        right.setStretchFactor(1, 1)
+        right.setSizes([360, 380])
+
         splitter = QSplitter(Qt.Orientation.Horizontal)
         splitter.setChildrenCollapsible(False)
         splitter.addWidget(self._build_left_panel())
-        splitter.addWidget(self._build_log_panel())
-        splitter.setStretchFactor(0, 3)
-        splitter.setStretchFactor(1, 2)
-        splitter.setSizes([740, 540])
+        splitter.addWidget(right)
+        splitter.setStretchFactor(0, 1)
+        splitter.setStretchFactor(1, 1)
+        splitter.setSizes([700, 720])
         outer.addWidget(splitter, 1)
 
         self.statusBar().showMessage("就绪")
@@ -232,31 +242,35 @@ class MainWindow(QMainWindow):
 
         lay.addWidget(info)
 
-        # --- 键盘 + 瀑布 + 五线谱 ---
+        # --- 键盘 + 瀑布（占满整条键盘宽度，瀑布与琴键逐键对齐）---
         kbd_frame = QFrame()
         kbd_frame.setObjectName("Panel")
         kbd_lay = QVBoxLayout(kbd_frame)
         kbd_lay.setContentsMargins(10, 8, 10, 10)
         kbd_lay.setSpacing(6)
         kbd_lay.addWidget(_section_title(
-            "音符瀑布 · 五线谱 · 键盘（点击键盘可本地发声，Esc 急停）"))
+            "音符瀑布 · 键盘（点击键盘可本地发声，Esc 急停）"))
 
         self.keyboard = PianoKeyboard()
         self.keyboard.setFixedHeight(142)
         self.keyboard.keyPressed.connect(self._on_mouse_press)
         self.keyboard.keyReleased.connect(self._on_mouse_release)
         self.trail = NoteTrail(self.keyboard)
-        self.staff = StaffView()
-
-        viz_row = QHBoxLayout()
-        viz_row.setContentsMargins(0, 0, 0, 0)
-        viz_row.setSpacing(8)
-        viz_row.addWidget(self.trail, 1)
-        viz_row.addWidget(self.staff, 0)
-        kbd_lay.addLayout(viz_row, 1)
+        kbd_lay.addWidget(self.trail, 1)
         kbd_lay.addWidget(self.keyboard, 0)
         lay.addWidget(kbd_frame, 1)
         return panel
+
+    def _build_staff_panel(self) -> QWidget:
+        frame = QFrame()
+        frame.setObjectName("Panel")
+        lay = QVBoxLayout(frame)
+        lay.setContentsMargins(10, 8, 10, 10)
+        lay.setSpacing(6)
+        lay.addWidget(_section_title("五线谱 · 音高位置"))
+        self.staff = StaffView()
+        lay.addWidget(self.staff, 1)
+        return frame
 
     def _build_log_panel(self) -> QWidget:
         frame = QFrame()
